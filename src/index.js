@@ -21,7 +21,7 @@ app.post('/videos/process', upload, (req, res) => {
 });
 
 app.get('/videos', (req, res) => {
-  const files = fs.readdirSync('videos').filter(file => file.includes('.m3u8'));
+  const files = fs.readdirSync('videos').filter(file => file.includes('master.m3u8'));
   res.status(200).send(files);
 });
 

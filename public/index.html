@@ -94,6 +94,15 @@
             background-color: #f8d7da;
             color: #721c24;
         }
+
+        .player-error {
+            padding: 20px;
+            margin: 10px 0;
+            background-color: #f8d7da;
+            color: #721c24;
+            border-radius: 4px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -111,14 +120,19 @@
         <div class="video-section">
             <h2>Available Videos</h2>
             <ul id="videoList"></ul>
+            <div id="playerError" class="player-error"></div>
             <video id="videoPlayer" controls></video>
         </div>
     </div>
 
     <script>
         // Check if HLS.js is supported
-        const isHLSSupported = Hls.isSupported();
+        if (!Hls.isSupported()) {
+            showStatus('HLS is not supported in your browser', 'error');
+        }
+
         const videoPlayer = document.getElementById('videoPlayer');
+        const playerError = document.getElementById('playerError');
         const uploadSection = document.getElementById('uploadSection');
         const uploadProgress = document.getElementById('uploadProgress');
         let hls = null;
@@ -199,13 +213,7 @@
 
         // Play video function
         function playVideo(videoFile) {
-            const videoUrl = `http://localhost:3000/videos/${videoFile}`;
-            
-            if (hls) {
-                hls.destroy();
-            }
-
-            // Mark selected video in list
+            // Update active video in list
             document.querySelectorAll('.video-item').forEach(item => {
                 item.classList.remove('active');
                 if (item.textContent === videoFile.replace('.m3u8', '')) {
@@ -213,23 +221,61 @@
                 }
             });
 
-            if (isHLSSupported) {
-                hls = new Hls();
-                hls.loadSource(videoUrl);
-                hls.attachMedia(videoPlayer);
-                hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    videoPlayer.play();
-                });
-            } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-                // For Safari
-                videoPlayer.src = videoUrl;
-                videoPlayer.addEventListener('loadedmetadata', () => {
-                    videoPlayer.play();
-                });
+            const videoUrl = `http://localhost:3000/videos/${videoFile}`;
+            
+            // Destroy existing HLS instance if it exists
+            if (hls !== null) {
+                hls.destroy();
             }
+
+            // Reset error display
+            playerError.style.display = 'none';
+            
+            // Create and configure new HLS instance
+            hls = new Hls({
+                debug: false,
+                enableWorker: true,
+                lowLatencyMode: true,
+                backBufferLength: 90
+            });
+
+            // Bind errors
+            hls.on(Hls.Events.ERROR, function(event, data) {
+                if (data.fatal) {
+                    switch(data.type) {
+                        case Hls.ErrorTypes.NETWORK_ERROR:
+                            showPlayerError('Network error, trying to recover...');
+                            hls.startLoad();
+                            break;
+                        case Hls.ErrorTypes.MEDIA_ERROR:
+                            showPlayerError('Media error, trying to recover...');
+                            hls.recoverMediaError();
+                            break;
+                        default:
+                            showPlayerError('An unrecoverable error occurred');
+                            hls.destroy();
+                            break;
+                    }
+                }
+            });
+
+            // Load source and bind to video element
+            hls.loadSource(videoUrl);
+            hls.attachMedia(videoPlayer);
+            
+            // Play when manifest is loaded
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                videoPlayer.play().catch(e => {
+                    console.log('Playback failed:', e);
+                });
+            });
         }
 
-        // Show status message function
+        function showPlayerError(message) {
+            playerError.textContent = message;
+            playerError.style.display = 'block';
+        }
+
         function showStatus(message, type) {
             const statusDiv = document.createElement('div');
             statusDiv.className = `status-message ${type}`;
