@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HLS Video Player</title>
+    <title>Video Processing and Playback</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plyr/3.7.8/plyr.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/plyr/3.7.8/plyr.css" />
     <style>
         body {
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: Arial, sans-serif;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
@@ -21,41 +23,22 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-
-        .upload-section {
+        .upload-section, .video-list-section, .player-section {
             margin-bottom: 30px;
-            padding: 20px;
-            border: 2px dashed #ccc;
-            border-radius: 8px;
         }
 
-        .upload-section.drag-over {
-            background-color: #e9ecef;
-            border-color: #666;
+        h2 {
+            color: #333;
+            margin-bottom: 15px;
         }
 
-        #uploadProgress {
-            width: 100%;
-            margin-top: 10px;
-            display: none;
+        .upload-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
         }
 
-        .video-section {
-            margin-top: 20px;
-        }
-
-        #videoPlayer {
-            width: 100%;
-            max-width: 800px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }
-
-        #videoList {
+        .video-list {
             list-style: none;
             padding: 0;
             margin: 0;
@@ -64,19 +47,21 @@
         .video-item {
             padding: 10px;
             margin: 5px 0;
-            background-color: #f8f9fa;
+            background-color: #f8f8f8;
             border-radius: 4px;
             cursor: pointer;
             transition: background-color 0.2s;
         }
 
         .video-item:hover {
-            background-color: #e9ecef;
+            background-color: #e8e8e8;
         }
 
-        .video-item.active {
-            background-color: #007bff;
-            color: white;
+        #playerContainer {
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16/9;
+            margin: 0 auto;
         }
 
         .status-message {
@@ -95,202 +80,193 @@
             color: #721c24;
         }
 
-        .player-error {
-            padding: 20px;
-            margin: 10px 0;
-            background-color: #f8d7da;
-            color: #721c24;
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
             border-radius: 4px;
-            display: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Video Player</h1>
-        
-        <div class="upload-section" id="uploadSection">
+        <div class="upload-section">
             <h2>Upload Video</h2>
-            <input type="file" id="fileInput" accept="video/*" style="display: none">
-            <button onclick="document.getElementById('fileInput').click()">Select Video</button>
-            <p>or drag and drop video file here</p>
-            <progress id="uploadProgress" value="0" max="100"></progress>
+            <form class="upload-form" id="uploadForm">
+                <input type="file" id="videoFile" accept="video/mp4" required>
+                <button type="submit" id="uploadButton">Upload</button>
+            </form>
+            <div id="uploadStatus"></div>
         </div>
 
-        <div class="video-section">
+        <div class="video-list-section">
             <h2>Available Videos</h2>
-            <ul id="videoList"></ul>
-            <div id="playerError" class="player-error"></div>
-            <video id="videoPlayer" controls></video>
+            <ul class="video-list" id="videoList"></ul>
+        </div>
+
+        <div class="player-section">
+            <h2>Video Player</h2>
+            <div id="playerContainer"></div>
         </div>
     </div>
 
     <script>
-        // Check if HLS.js is supported
-        if (!Hls.isSupported()) {
-            showStatus('HLS is not supported in your browser', 'error');
-        }
+        const API_BASE_URL = 'http://localhost:3000'; // Change this to match your API URL
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const videoList = document.getElementById('videoList');
+        const uploadButton = document.getElementById('uploadButton');
+        let player;
 
-        const videoPlayer = document.getElementById('videoPlayer');
-        const playerError = document.getElementById('playerError');
-        const uploadSection = document.getElementById('uploadSection');
-        const uploadProgress = document.getElementById('uploadProgress');
-        let hls = null;
-
-        // Handle drag and drop
-        uploadSection.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadSection.classList.add('drag-over');
-        });
-
-        uploadSection.addEventListener('dragleave', () => {
-            uploadSection.classList.remove('drag-over');
-        });
-
-        uploadSection.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadSection.classList.remove('drag-over');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('video/')) {
-                uploadVideo(file);
-            }
-        });
-
-        // Handle file input change
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                uploadVideo(file);
-            }
-        });
-
-        // Upload video function
-        async function uploadVideo(file) {
-            const formData = new FormData();
-            formData.append('video', file);
-
-            uploadProgress.style.display = 'block';
+        // Initialize PlayerIO
+        function initializePlayer() {
+            const playerElement = document.createElement('video');
+            playerElement.className = 'plyr__video-embed';
+            document.getElementById('playerContainer').appendChild(playerElement);
             
-            try {
-                const response = await fetch('http://localhost:3000/video/process', {
-                    method: 'POST',
-                    body: formData
-                });
+            // Initialize HLS
+            const hls = new Hls();
+            hls.attachMedia(playerElement);
 
-                if (!response.ok) {
-                    throw new Error('Upload failed');
+            // Initialize Plyr
+            player = new Plyr(playerElement, {
+                controls: [
+                    'play-large',
+                    'play',
+                    'progress',
+                    'current-time',
+                    'mute',
+                    'volume',
+                    'captions',
+                    'settings',
+                    'pip',
+                    'airplay',
+                    'fullscreen'
+                ],
+                quality: {
+                  default: 720,
+                  options: [720, 480, 180],
+                  forced: true,
+                  onChange: (e) => updateQuality(e),
                 }
-
-                showStatus('Video uploaded successfully!', 'success');
-                loadVideoList();
-            } catch (error) {
-                showStatus('Failed to upload video: ' + error.message, 'error');
-            } finally {
-                uploadProgress.style.display = 'none';
+            });
+            function updateQuality(newQuality) {
+              console.log(newQuality);
+              hls.levels.forEach((level, index) => {
+                if (level.height === newQuality) {
+                  hls.currentLevel = index;
+                }
+              })
             }
+            // Handle HLS events
+            hls.on(Hls.Events.MEDIA_ATTACHED, function () {
+                console.log('HLS Media Attached');
+            });
+
+            return { player, hls };
         }
 
-        // Load video list function
-        async function loadVideoList() {
+        const { player: videoPlayer, hls } = initializePlayer();
+
+        // Load and display available videos
+        async function loadVideos() {
             try {
-                const response = await fetch('http://localhost:3000/videos');
+                const response = await fetch(`${API_BASE_URL}/videos`);
                 const videos = await response.json();
                 
-                const videoList = document.getElementById('videoList');
                 videoList.innerHTML = '';
-                
                 videos.forEach(video => {
                     const li = document.createElement('li');
                     li.className = 'video-item';
-                    li.textContent = video.replace('.m3u8', '');
+                    li.textContent = video;
                     li.onclick = () => playVideo(video);
                     videoList.appendChild(li);
                 });
             } catch (error) {
-                showStatus('Failed to load video list: ' + error.message, 'error');
+                console.error('Error loading videos:', error);
+                showStatus('Error loading video list', 'error');
             }
         }
 
-        // Play video function
-        function playVideo(videoFile) {
-            // Update active video in list
-            document.querySelectorAll('.video-item').forEach(item => {
-                item.classList.remove('active');
-                if (item.textContent === videoFile.replace('.m3u8', '')) {
-                    item.classList.add('active');
-                }
-            });
+        // Handle video upload
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('videoFile');
+            const file = fileInput.files[0];
 
-            const videoUrl = `http://localhost:3000/videos/${videoFile}`;
-            
-            // Destroy existing HLS instance if it exists
-            if (hls !== null) {
-                hls.destroy();
+            if (!file) {
+                showStatus('Please select a file', 'error');
+                return;
             }
 
-            // Reset error display
-            playerError.style.display = 'none';
-            
-            // Create and configure new HLS instance
-            hls = new Hls({
-                debug: false,
-                enableWorker: true,
-                lowLatencyMode: true,
-                backBufferLength: 90
-            });
+            const formData = new FormData();
+            formData.append('video', file);
 
-            // Bind errors
-            hls.on(Hls.Events.ERROR, function(event, data) {
-                if (data.fatal) {
-                    switch(data.type) {
-                        case Hls.ErrorTypes.NETWORK_ERROR:
-                            showPlayerError('Network error, trying to recover...');
-                            hls.startLoad();
-                            break;
-                        case Hls.ErrorTypes.MEDIA_ERROR:
-                            showPlayerError('Media error, trying to recover...');
-                            hls.recoverMediaError();
-                            break;
-                        default:
-                            showPlayerError('An unrecoverable error occurred');
-                            hls.destroy();
-                            break;
-                    }
-                }
-            });
+            uploadButton.disabled = true;
+            showStatus('Uploading video...', 'info');
 
-            // Load source and bind to video element
-            hls.loadSource(videoUrl);
-            hls.attachMedia(videoPlayer);
-            
-            // Play when manifest is loaded
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                videoPlayer.play().catch(e => {
-                    console.log('Playback failed:', e);
+            try {
+                const response = await fetch(`${API_BASE_URL}/videos/process`, {
+                    method: 'POST',
+                    body: formData
                 });
-            });
+
+                if (response.ok) {
+                    showStatus('Video uploaded successfully', 'success');
+                    uploadForm.reset();
+                    loadVideos(); // Refresh video list
+                } else {
+                    throw new Error('Upload failed');
+                }
+            } catch (error) {
+                console.error('Error uploading video:', error);
+                showStatus('Error uploading video', 'error');
+            } finally {
+                uploadButton.disabled = false;
+            }
+        });
+
+        // Play selected video
+        function playVideo(filename) {
+            const videoUrl = `${API_BASE_URL}/videos/${filename}`;
+
+            if (Hls.isSupported()) {
+                hls.loadSource(videoUrl);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    videoPlayer.play();
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // For Safari
+                video.src = videoUrl;
+            }
         }
 
-        function showPlayerError(message) {
-            playerError.textContent = message;
-            playerError.style.display = 'block';
-        }
-
+        // Show status messages
         function showStatus(message, type) {
-            const statusDiv = document.createElement('div');
-            statusDiv.className = `status-message ${type}`;
-            statusDiv.textContent = message;
+            uploadStatus.className = `status-message ${type}`;
+            uploadStatus.textContent = message;
             
-            const container = document.querySelector('.container');
-            container.insertBefore(statusDiv, container.firstChild);
-            
-            setTimeout(() => {
-                statusDiv.remove();
-            }, 5000);
+            if (type === 'success') {
+                setTimeout(() => {
+                    uploadStatus.textContent = '';
+                }, 3000);
+            }
         }
 
-        // Initial load of video list
-        loadVideoList();
+        // Initial load of videos
+        loadVideos();
     </script>
 </body>
 </html>
