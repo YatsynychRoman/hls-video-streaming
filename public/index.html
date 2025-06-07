@@ -1,272 +1,494 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Processing and Playback</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/plyr/3.7.8/plyr.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/plyr/3.7.8/plyr.css" />
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HLS Video Player</title>
 
-        .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+  <!-- Video.js -->
+  <link href="https://vjs.zencdn.net/8.5.2/video-js.css" rel="stylesheet" />
+  <script src="https://vjs.zencdn.net/8.5.2/video.min.js"></script>
 
-        .upload-section, .video-list-section, .player-section {
-            margin-bottom: 30px;
-        }
+  <!-- HLS Quality Selector Plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@2.0.0/dist/videojs-hls-quality-selector.min.js"></script>
 
-        h2 {
-            color: #333;
-            margin-bottom: 15px;
-        }
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-        .upload-form {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #333;
+    }
 
-        .video-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
 
-        .video-item {
-            padding: 10px;
-            margin: 5px 0;
-            background-color: #f8f8f8;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
 
-        .video-item:hover {
-            background-color: #e8e8e8;
-        }
+    .header h1 {
+      color: white;
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      margin-bottom: 10px;
+    }
 
-        #playerContainer {
-            width: 100%;
-            max-width: 800px;
-            aspect-ratio: 16/9;
-            margin: 0 auto;
-        }
+    .header p {
+      color: rgba(255,255,255,0.9);
+      font-size: 1.1rem;
+    }
 
-        .status-message {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 4px;
-        }
+    .card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
 
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-        }
+    .upload-section h2 {
+      color: #2c3e50;
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
 
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
+    .upload-section h2::before {
+      content: "📤";
+      font-size: 1.2rem;
+    }
 
-        button {
-            padding: 8px 16px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
+    .upload-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
 
-        button:hover {
-            background-color: #0056b3;
-        }
+    .file-input-wrapper {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+    }
 
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-    </style>
+    .file-input {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .file-input-display {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      border: 2px dashed #667eea;
+      border-radius: 12px;
+      background: #f8f9ff;
+      color: #667eea;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      min-height: 80px;
+    }
+
+    .file-input-display:hover {
+      border-color: #764ba2;
+      background: #f0f2ff;
+      color: #764ba2;
+      transform: translateY(-2px);
+    }
+
+    .file-input-display.has-file {
+      background: #e8f5e8;
+      border-color: #28a745;
+      color: #28a745;
+    }
+
+    .upload-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      align-self: flex-start;
+    }
+
+    .upload-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .upload-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #ddd, transparent);
+      margin: 40px 0;
+    }
+
+    .player-section h2 {
+      color: #2c3e50;
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .player-section h2::before {
+      content: "🎬";
+      font-size: 1.2rem;
+    }
+
+    .video-selector {
+      width: 100%;
+      padding: 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 1rem;
+      background: white;
+      color: #333;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 25px;
+    }
+
+    .video-selector:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .video-container {
+      background: #000;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+      position: relative;
+    }
+
+    .video-js {
+      width: 100%;
+      height: auto;
+      min-height: 400px;
+    }
+
+    .video-js .vjs-big-play-button {
+      background: rgba(102, 126, 234, 0.9);
+      border: none;
+      border-radius: 50%;
+      width: 80px;
+      height: 80px;
+      line-height: 80px;
+      font-size: 2rem;
+      left: 50%;
+      top: 50%;
+      margin-left: -40px;
+      margin-top: -40px;
+      transition: all 0.3s ease;
+    }
+
+    .video-js .vjs-big-play-button:hover {
+      background: rgba(118, 75, 162, 0.9);
+      transform: scale(1.1);
+    }
+
+    .status-message {
+      padding: 15px;
+      border-radius: 12px;
+      margin: 20px 0;
+      display: none;
+      animation: slideIn 0.3s ease;
+    }
+
+    .status-message.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status-message.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      color: #667eea;
+    }
+
+    .loading.show {
+      display: block;
+    }
+
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+      }
+      
+      .header h1 {
+        font-size: 2rem;
+      }
+      
+      .card {
+        padding: 20px;
+      }
+      
+      .video-js {
+        min-height: 250px;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="upload-section">
-            <h2>Upload Video</h2>
-            <form class="upload-form" id="uploadForm">
-                <input type="file" id="videoFile" accept="video/mp4" required>
-                <button type="submit" id="uploadButton">Upload</button>
-            </form>
-            <div id="uploadStatus"></div>
-        </div>
-
-        <div class="video-list-section">
-            <h2>Available Videos</h2>
-            <ul class="video-list" id="videoList"></ul>
-        </div>
-
-        <div class="player-section">
-            <h2>Video Player</h2>
-            <div id="playerContainer"></div>
-        </div>
+  <div class="container">
+    <div class="header">
+      <h1>HLS Video Player</h1>
+      <p>Upload and stream your videos with adaptive quality</p>
     </div>
 
-    <script>
-        const API_BASE_URL = 'http://localhost:3000'; // Change this to match your API URL
-        const uploadForm = document.getElementById('uploadForm');
-        const uploadStatus = document.getElementById('uploadStatus');
-        const videoList = document.getElementById('videoList');
-        const uploadButton = document.getElementById('uploadButton');
-        let player;
+    <!-- Upload Section -->
+    <div class="card upload-section">
+      <h2>Upload Video</h2>
+      <form id="uploadForm" class="upload-form">
+        <div class="file-input-wrapper">
+          <input type="file" id="videoFile" name="video" accept="video/mp4" required class="file-input" />
+          <div class="file-input-display" id="fileDisplay">
+            <span>📁 Click to select MP4 file or drag and drop</span>
+          </div>
+        </div>
+        <button type="submit" class="upload-btn" id="uploadBtn">
+          Upload Video
+        </button>
+      </form>
+      
+      <div class="loading" id="loadingIndicator">
+        <div class="spinner"></div>
+        <p>Processing video...</p>
+      </div>
+      
+      <div class="status-message" id="statusMessage"></div>
+    </div>
 
-        // Initialize PlayerIO
-        function initializePlayer() {
-            const playerElement = document.createElement('video');
-            playerElement.className = 'plyr__video-embed';
-            document.getElementById('playerContainer').appendChild(playerElement);
-            
-            // Initialize HLS
-            const hls = new Hls();
-            hls.attachMedia(playerElement);
+    <div class="divider"></div>
 
-            // Initialize Plyr
-            player = new Plyr(playerElement, {
-                controls: [
-                    'play-large',
-                    'play',
-                    'progress',
-                    'current-time',
-                    'mute',
-                    'volume',
-                    'captions',
-                    'settings',
-                    'pip',
-                    'airplay',
-                    'fullscreen'
-                ],
-                quality: {
-                  default: 720,
-                  options: [720, 480, 180],
-                  forced: true,
-                  onChange: (e) => updateQuality(e),
-                }
-            });
-            function updateQuality(newQuality) {
-              console.log(newQuality);
-              hls.levels.forEach((level, index) => {
-                if (level.height === newQuality) {
-                  hls.currentLevel = index;
-                }
-              })
-            }
-            // Handle HLS events
-            hls.on(Hls.Events.MEDIA_ATTACHED, function () {
-                console.log('HLS Media Attached');
-            });
+    <!-- Player Section -->
+    <div class="card player-section">
+      <h2>Video Library</h2>
+      <select id="videoSelector" class="video-selector">
+        <option value="">Select a video to play</option>
+      </select>
 
-            return { player, hls };
+      <div class="video-container">
+        <video 
+          id="videoPlayer" 
+          class="video-js vjs-default-skin" 
+          controls 
+          preload="auto"
+          data-setup='{"fluid": true, "responsive": true}'
+        ></video>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const videoSelector = document.getElementById('videoSelector');
+    const uploadForm = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('videoFile');
+    const fileDisplay = document.getElementById('fileDisplay');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const statusMessage = document.getElementById('statusMessage');
+
+    // Initialize Video.js player
+    const player = videojs('videoPlayer', {
+      techOrder: ['html5'],
+      html5: {
+        vhs: {
+          enableLowInitialPlaylist: true
         }
+      },
+      fluid: true,
+      responsive: true
+    });
 
-        const { player: videoPlayer, hls } = initializePlayer();
+    // Add HLS quality selector
+    player.hlsQualitySelector();
 
-        // Load and display available videos
-        async function loadVideos() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/videos`);
-                const videos = await response.json();
-                
-                videoList.innerHTML = '';
-                videos.forEach(video => {
-                    const li = document.createElement('li');
-                    li.className = 'video-item';
-                    li.textContent = video;
-                    li.onclick = () => playVideo(video);
-                    videoList.appendChild(li);
-                });
-            } catch (error) {
-                console.error('Error loading videos:', error);
-                showStatus('Error loading video list', 'error');
-            }
-        }
+    // File input display update
+    fileInput.addEventListener('change', function() {
+      const file = this.files[0];
+      if (file) {
+        fileDisplay.innerHTML = `<span>✅ ${file.name}</span>`;
+        fileDisplay.classList.add('has-file');
+      } else {
+        fileDisplay.innerHTML = '<span>📁 Click to select MP4 file or drag and drop</span>';
+        fileDisplay.classList.remove('has-file');
+      }
+    });
 
-        // Handle video upload
-        uploadForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const fileInput = document.getElementById('videoFile');
-            const file = fileInput.files[0];
+    // Drag and drop functionality
+    fileDisplay.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      this.style.borderColor = '#764ba2';
+      this.style.background = '#f0f2ff';
+    });
 
-            if (!file) {
-                showStatus('Please select a file', 'error');
-                return;
-            }
+    fileDisplay.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      this.style.borderColor = '#667eea';
+      this.style.background = '#f8f9ff';
+    });
 
-            const formData = new FormData();
-            formData.append('video', file);
+    fileDisplay.addEventListener('drop', function(e) {
+      e.preventDefault();
+      const files = e.dataTransfer.files;
+      if (files.length > 0 && files[0].type.startsWith('video/')) {
+        fileInput.files = files;
+        fileInput.dispatchEvent(new Event('change'));
+      }
+      this.style.borderColor = '#667eea';
+      this.style.background = '#f8f9ff';
+    });
 
-            uploadButton.disabled = true;
-            showStatus('Uploading video...', 'info');
+    // Status message helper
+    function showStatus(message, type) {
+      statusMessage.textContent = message;
+      statusMessage.className = `status-message ${type}`;
+      statusMessage.style.display = 'block';
+      setTimeout(() => {
+        statusMessage.style.display = 'none';
+      }, 5000);
+    }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/videos/process`, {
-                    method: 'POST',
-                    body: formData
-                });
+    // Load video list
+    async function loadVideoList() {
+      try {
+        const res = await fetch('http://localhost:3000/videos');
+        const list = await res.json();
 
-                if (response.ok) {
-                    showStatus('Video uploaded successfully', 'success');
-                    uploadForm.reset();
-                    loadVideos(); // Refresh video list
-                } else {
-                    throw new Error('Upload failed');
-                }
-            } catch (error) {
-                console.error('Error uploading video:', error);
-                showStatus('Error uploading video', 'error');
-            } finally {
-                uploadButton.disabled = false;
-            }
+        videoSelector.innerHTML = '<option value="">Select a video to play</option>';
+        list.forEach(filename => {
+          const option = document.createElement('option');
+          option.value = filename;
+          option.textContent = filename.replace(/\.[^/.]+$/, ''); // Remove extension for display
+          videoSelector.appendChild(option);
+        });
+      } catch (error) {
+        showStatus('Failed to load video list', 'error');
+      }
+    }
+
+    // Video selection handler
+    videoSelector.addEventListener('change', () => {
+      const selected = videoSelector.value;
+      if (!selected) return;
+
+      player.src({
+        src: `http://localhost:3000/videos/${selected}`,
+        type: 'application/x-mpegURL'
+      });
+      player.ready(() => {
+        player.play();
+      });
+    });
+
+    // Upload form handler
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      // Show loading state
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Uploading...';
+      loadingIndicator.classList.add('show');
+
+      try {
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const res = await fetch('http://localhost:3000/videos/process', {
+          method: 'POST',
+          body: formData
         });
 
-        // Play selected video
-        function playVideo(filename) {
-            const videoUrl = `${API_BASE_URL}/videos/${filename}`;
-
-            if (Hls.isSupported()) {
-                hls.loadSource(videoUrl);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    videoPlayer.play();
-                });
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                // For Safari
-                video.src = videoUrl;
-            }
+        if (res.ok) {
+          showStatus('Video uploaded successfully. Please wait for processing to finish!', 'success');
+          loadVideoList();
+          uploadForm.reset();
+          fileInput.dispatchEvent(new Event('change'));
+        } else {
+          const errorText = await res.text();
+          showStatus(`Upload failed: ${errorText}`, 'error');
         }
+      } catch (error) {
+        showStatus('Upload failed: Network error', 'error');
+      } finally {
+        // Reset loading state
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Upload Video';
+        loadingIndicator.classList.remove('show');
+      }
+    });
 
-        // Show status messages
-        function showStatus(message, type) {
-            uploadStatus.className = `status-message ${type}`;
-            uploadStatus.textContent = message;
-            
-            if (type === 'success') {
-                setTimeout(() => {
-                    uploadStatus.textContent = '';
-                }, 3000);
-            }
-        }
-
-        // Initial load of videos
-        loadVideos();
-    </script>
+    // Initialize
+    loadVideoList();
+  </script>
 </body>
 </html>

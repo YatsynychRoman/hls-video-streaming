@@ -39,6 +39,7 @@ const processVideo = (videoName) => {
           `-b:v ${videoBitrate}`,
           '-c:a aac',
           `-b:a ${audioBitrate}`,
+          '-ac 2',
           `-vf scale=${resolution}`,
           '-start_number 0',
           '-hls_time 10',
