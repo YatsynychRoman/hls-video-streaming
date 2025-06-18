@@ -42,6 +42,7 @@ const processVideo = (videoName) => {
           '-ac 2',
           `-vf scale=${resolution}`,
           '-start_number 0',
+          '-hls_flags split_by_time',
           '-hls_time 10',
           '-hls_list_size 0',
           '-f hls',
